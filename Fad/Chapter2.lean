@@ -46,33 +46,26 @@ def append' {a} : List a → List a → TimeM Nat (List a)
   | x :: xs, ys => do
       ✓ return x :: (← append' xs ys)
 
+
 def concat₁' {a} : List (List a) → TimeM Nat (List a) :=
   List.foldr (fun xs tys => do
     let ys ← tys
     ✓[xs.length] return xs ++ ys) (pure [])
 
-def concat₂' {a} : List (List a) → TimeM Nat (List a) :=
-  List.foldl (fun txs ys => do
-    let xs ← txs
-    ✓[xs.length] return xs ++ ys) (pure [])
+def concat₁'' {a} : List (List a) → TimeM Nat (List a)
+ | []         => pure []
+ | xs :: xss  => do
+   let res ← concat₁'' xss
+   ✓[xs.length] return xs ++ res
 
-/- an alternative approach is to redefine concat₂ recursive, not depend on
-foldl. it could be eventually easier to the proofs below. -/
-def concat₂'' {a} : List (List a) → TimeM Nat (List a) → TimeM Nat (List a)
- | [], t => t
- | xs :: xss, t =>  do
-   let res ← t
-   concat₂'' xss (do ✓[res.length] return res ++ xs)
-
-
-private lemma concat₁_step {a : Type*}
+private lemma concat₁'_step {a : Type*}
   (xs : List a) (xss' : List (List a)) :
   (concat₁' (xs :: xss')).time = (concat₁' xss').time + xs.length := by
   simp [concat₁', List.foldr]
 
 /- if `xss` is a list of length `m` consisting of lists each of length `n`, then
 `concat₁` is `Θ(m * n)` -/
-theorem concat₁_time (xss : List (List a))
+theorem concat₁'_time (xss : List (List a))
   (n : Nat) (h : ∀ xs ∈ xss, xs.length = n)
   : (concat₁' xss).time = xss.length * n := by
   induction xss with
@@ -82,47 +75,70 @@ theorem concat₁_time (xss : List (List a))
     have h₂ : ∀ ys ∈ xss', ys.length = n := by
       intro ys hys
       exact h ys (List.mem_cons_of_mem xs hys)
-    rw [concat₁_step, ih h₂, h₁, List.length_cons]
+    rw [concat₁'_step, ih h₂, h₁, List.length_cons]
     ring
 
-private lemma concat₂_foldl_tb {a}
+theorem concat₁''_time (xss : List (List a))
+  (n : Nat) (h : ∀ xs ∈ xss, xs.length = n)
+  : (concat₁'' xss).time = xss.length * n := by
+  induction xss with
+  | nil => simp [concat₁'']
+  | cons xs xss' ih =>
+      have h₁ : xs.length = n := h xs List.mem_cons_self
+      have h₂ : ∀ ys ∈ xss', ys.length = n := by
+        intro ys hys
+        exact h ys (List.mem_cons_of_mem xs hys)
+      simp [concat₁'', ih h₂, h₁]
+      ring
+
+
+def concat₂' {a} : List (List a) → TimeM Nat (List a) :=
+  List.foldl (fun txs ys => do
+    let xs ← txs
+    ✓[xs.length] return xs ++ ys) (pure [])
+
+def concat₂'' {a} : List (List a) → TimeM Nat (List a) → TimeM Nat (List a)
+ | [], t => t
+ | xs :: xss, t =>  do
+   let res ← t
+   concat₂'' xss (do ✓[res.length] return res ++ xs)
+
+private lemma concat₂'_step {a}
   (xss : List (List a)) (n k : Nat)
   (h : ∀ xs ∈ xss, xs.length = n)
   (acc : TimeM Nat (List a))
   (hacc : acc.ret.length = k * n)
-  : (List.foldl (fun txs ys => do
+  : (2 * (List.foldl (fun txs ys => do
        let xs ← txs
-       tick xs.length
-       pure (xs ++ ys)) acc xss).time
-      ≤ acc.time + (k + xss.length) * n * xss.length := by
+       ✓[xs.length] pure $ xs ++ ys) acc xss).time : Int)
+    = 2 * acc.time + 2 * k * n * xss.length + n * xss.length * (xss.length - 1) := by
   induction xss generalizing k acc with
   | nil => simp
-  | cons ys xss' ih =>
+  | cons bs bss ih =>
     simp only [List.foldl, List.length_cons]
-    have hys : ys.length = n := h ys List.mem_cons_self
-    have hxss' : ∀ zs ∈ xss', zs.length = n :=
-      fun zs hzs => h zs (List.mem_cons_of_mem ys hzs)
-    set acc' : TimeM Nat (List a) := do let xs ← acc; tick xs.length; pure (xs ++ ys)
-    have hacc'_time : acc'.time = acc.time + k * n := by simp [acc', hacc]
-    have hacc'_len : acc'.ret.length = (k + 1) * n := by
-      simp [acc', List.length_append, hacc, hys]; ring
-    have ih' := ih (h := hxss') (k := k + 1) (acc := acc') (hacc := hacc'_len)
-    nlinarith [Nat.zero_le xss'.length, Nat.zero_le k, Nat.zero_le n]
+    have hbs : bs.length = n := h bs List.mem_cons_self
+    have hbss : ∀ zs ∈ bss, zs.length = n :=
+      fun zs hzs => h zs (List.mem_cons_of_mem bs hzs)
+    set acc' := do let xs ← acc; ✓[xs.length] pure (xs ++ bs)
+    have hacc'_t : acc'.time = acc.time + k * n := by simp [acc', hacc]
+    have hacc'_l : acc'.ret.length = (k + 1) * n := by
+      simp [acc', List.length_append, hacc, hbs]; ring
+    specialize ih (k + 1) hbss acc' hacc'_l
+    grind only
 
 /- if `xss` is a list of length `m` consisting of lists each of length `n`, then
-`concat₂` is `O(m^2 * n)` but also Θ(m2 n) ?? -/
-theorem concat₂_time (xss : List (List a))
+`concat₂` is `Θ(m^2 * n)` or `2 * time = n * m * (m - 1)` -/
+theorem concat₂'_time (xss : List (List a))
   (n : Nat) (h : ∀ xs ∈ xss, xs.length = n)
-  : (concat₂' xss).time ≤ xss.length ^ 2 * n := by
-  have h1 := concat₂_foldl_tb xss n 0 h (pure []) (by simp)
-  unfold concat₂'
-  simp at *
-  linarith [Nat.pow_two xss.length]
+  : (2 * (concat₂' xss).time : Int) = n * xss.length * (xss.length - 1) := by
+  have h₁ := concat₂'_step xss n 0 h (pure []) (by simp)
+  simp only [concat₂', time_pure] at *
+  grind only
 
 
 -- # 2.4 Amortised running times
 
-def build (p : a → a → Bool) : List a → List a :=
+def build {a} (p : a → a → Bool) : List a → List a :=
  List.foldr insert []
  where
   insert x xs := x :: dropWhile (p x) xs
@@ -134,17 +150,18 @@ example : build (· = ·) [4,4,2,1,1] = [4, 2, 1] := by
  unfold List.foldr
  unfold List.foldr
  unfold List.foldr
+ unfold List.foldr
+ set p := (fun x1 x2 : Nat => decide (x1 = x2)) with hp
  unfold build.insert
  rw [dropWhile]
  rw [dropWhile]
  rw [dropWhile]
- simp
  rfl
 
 
 /- primeiro argumento evita lista infinita -/
 def iterate : Nat → (a → a) → a → List a
- | 0, _, x => [x]
+ | 0         , _, x => [x]
  | Nat.succ n, f, x => x :: iterate n f (f x)
 
 def bits (n : Nat) : List (List Bool) :=
@@ -152,9 +169,8 @@ def bits (n : Nat) : List (List Bool) :=
  where
    inc : List Bool → List Bool
    | [] => [true]
-   | (false :: bs) => true :: bs
-   | (true :: bs) => false :: inc bs
-
+   | false :: bs => true :: bs
+   | true  :: bs => false :: inc bs
 
 def init₀ : List α → List α
 | []      => panic! "no elements"

@@ -7,17 +7,11 @@ open List (reverse tail cons)
 
 -- # Section 3.1 Symmetric lists
 
-def _root_.List.single (xs : List α) : Bool := xs.length = 1
-
-def snoc {a : Type} (x : a) (xs : List a) : List a :=
-  xs ++ [x]
-
-
-namespace SL1
+namespace DoesNotWork
 
 variable {α : Type}
 
-abbrev SymList (α : Type u) := (List α) × (List α)
+abbrev SymList α := (List α) × (List α)
 
 def nilSL : SymList α := ([], [])
 
@@ -42,34 +36,17 @@ example (x : α) (xs : SymList α)
  | nil =>
    simp [fromSL, snocSL]; sorry
  | cons y ys ih =>
-   simp [fromSL, snoc, snocSL, List.reverse_cons,
-         List.append_assoc]
+   simp [fromSL, snocSL, List.reverse_cons, List.append_assoc]
 -/
 
-end SL1
+end DoesNotWork
 
-/-
-#check ([] : List Nat)
-#eval ([] : List Nat).head?
-#eval [1,2].head?
-#eval [].head (by simp)
-#eval [1,2].head (by simp)
 
-def test (xs : List α) (ok : xs.length > 2) : α := xs[2]
-#eval test [1, 2, 3, 4] (by simp)
--/
+def _root_.List.single (xs : List α) : Bool := xs.length = 1
 
-open Chapter1 (dropWhile)
+def snoc {a : Type} (x : a) (xs : List a) : List a :=
+  xs ++ [x]
 
-/- it may simplify the proofs
-
-structure SymList' (a : Type) where
-  lhs : List a
-  rhs : List a
-  ok : (lhs.length = 0 → rhs.length ≤ 1) ∧
-       (rhs.length = 0 → lhs.length ≤ 1)
- deriving Repr
--/
 
 structure SymList (a : Type) where
   lhs : List a
@@ -98,7 +75,8 @@ def snocSL : a → SymList a → SymList a
 | z, ⟨ [], bs, _ ⟩ => ⟨bs, [z], by simp⟩
 | z, ⟨ a :: as, bs, _ ⟩ => ⟨a :: as, z :: bs, by simp⟩
 
-example (x : a) : cons x ∘ fromSL = fromSL ∘ consSL x := by
+theorem cons_fromSL_eq_fromSL_consSL (x : a)
+ : cons x ∘ fromSL = fromSL ∘ consSL x := by
  funext s
  cases s with
  | mk as bs h =>
@@ -116,7 +94,8 @@ example (x : a) : cons x ∘ fromSL = fromSL ∘ consSL x := by
        rw [h1]; simp
    | cons z zs => simp [consSL, fromSL]
 
-example (x : a) : snoc x ∘ fromSL = fromSL ∘ snocSL x := by
+theorem snoc_fromSL_eq_fromSL_snocSL (x : a)
+  : snoc x ∘ fromSL = fromSL ∘ snocSL x := by
   funext sl
   simp [Function.comp]
   have ⟨lhs, rhs, ok⟩ := sl
@@ -133,26 +112,20 @@ example (x : a) : snoc x ∘ fromSL = fromSL ∘ snocSL x := by
 def isEmpty (sl : SymList a) : Bool :=
   sl.lhs.isEmpty ∧ sl.rhs.isEmpty
 
-theorem sl_empty_l_empty :
-  ∀ sl : SymList a, isEmpty sl → (fromSL sl).isEmpty := by
-  intro sl h
-  have ⟨as, bs, h₁⟩ := sl
-  unfold isEmpty at h
-  simp at h
-  simp [fromSL]
-  assumption
 
-theorem sl_noempty_l_noempty :
-  ∀ sl : SymList a, ¬ isEmpty sl → (fromSL sl) ≠ [] := by
-  intro sl h
-  have ⟨as, bs, h₁⟩ := sl
-  unfold isEmpty at h
-  simp at h
-  simp [fromSL]
-  assumption
+theorem fromSL_isEmpty_iff_isEmpty (sl : SymList a)
+  : (fromSL sl).isEmpty ↔ isEmpty sl := by
+  cases sl with
+  | mk as bs ok =>
+    simp [isEmpty, fromSL]
+
+theorem fromSL_ne_nil_of_not_isEmpty (sl : SymList a) (h : ¬ isEmpty sl)
+  : fromSL sl ≠ [] := by
+  intro he
+  exact h ((fromSL_isEmpty_iff_isEmpty sl).mp (List.isEmpty_iff.mpr he))
 
 
-def lastSL (sl : SymList a) (ne : ¬ isEmpty sl) : a :=
+def getLast (sl : SymList a) (ne : ¬ isEmpty sl) : a :=
  match sl with
  | ⟨xs, ys, ok⟩ =>
    if h₁ : ys.isEmpty then
@@ -166,49 +139,26 @@ def lastSL (sl : SymList a) (ne : ¬ isEmpty sl) : a :=
    else
      ys.head (by simp at h₁ ; exact h₁)
 
-def lastSL? : SymList a → Option a
+def getLast? : SymList a → Option a
  | ⟨[]    , []    , _⟩ => none
  | ⟨x :: _, []    , _⟩ => x
  | ⟨_     , y :: _, _⟩ => y
 
 
-/-
-example (sl : SymList a) (h : ¬ isEmpty sl)
-  : (fromSL sl).getLast (sl_noempty_l_noempty sl h) = lastSL sl h := by
-  let ⟨as, bs, h₂⟩ := sl
-  unfold lastSL fromSL
-  have h₃ := sl_noempty_l_noempty _ h
-  simp [fromSL] at h₃ ; simp
-  split_ifs with h₁
-  · -- Case: bs.isEmpty is true
-    rewrite [h₁] at h₂ ; simp at h₂
-    apply Or.elim h₂ ; intro h₄
-    rw [h₄]
-    sorry
-    simp [List.getLast_append_of_ne_nil]
-    apply h₃
-  · -- Case: bs.isEmpty is false
-    simp [List.getLast_append]
-    simp at h₁
-    sorry
-    -- rw [List.getLast_reverse]
-    · exact h₁
-
-example {a : Type} : List.getLast? ∘ fromSL = @lastSL a := by
-  funext sl
-  have ⟨lhs, rhs, ok⟩ := sl
-  simp [Function.comp, lastSL, fromSL]
-  split <;> rename_i h
-  rw [List.isEmpty_iff] at h
-  subst h
-  simp at ok ⊢
-  apply ok.elim <;> intro h2
-  simp [h2]
-  have y :: [] := lhs
-  simp
-  have z :: _ := rhs
-  simp
--/
+theorem fromSL_getLast_eq_getLast (sl : SymList a) (h : ¬ isEmpty sl)
+  : (fromSL sl).getLast (fromSL_ne_nil_of_not_isEmpty sl h) = sl.getLast h := by
+  cases sl with
+  | mk as bs ok =>
+    cases bs with
+    | cons b bs' =>
+      -- Case: bs is non-empty, so getLast = bs.head
+      simp only [fromSL, getLast]
+      rw [List.getLast_append_of_ne_nil (h₂ := by simp)]
+      exact List.getLast_reverse _
+    | nil =>
+      -- Case: bs = [], the invariant forces as to be a singleton
+      match as, ok.2 (by rfl) with
+      | [x], h₂ => simp [fromSL, getLast]
 
 
 def _root_.List.toSL : List a → SymList a
@@ -227,8 +177,10 @@ def headSL! [Inhabited a] : SymList a → a
 
 
 def singleSL (sl : SymList a): Bool :=
-  (List.single sl.lhs ∧ sl.rhs.isEmpty) ∨
-  (List.single sl.rhs ∧ sl.lhs.isEmpty)
+ match sl with
+ | mk as [] _ => as.single
+ | mk [] bs _ => bs.single
+ | mk _ _ _   => false
 
 def lengthSL (sl : SymList a) : Nat :=
   sl.lhs.length + sl.rhs.length
@@ -260,9 +212,11 @@ def tailSL {a : Type} (as : SymList a) : SymList a :=
          all_goals intro h3; have k :: (l :: ms) := xs
          repeat simp [ok] at *)
 
-example : ∀ (as : SymList a), fromSL (tailSL as) = tail (fromSL as) := by
-  intro sl
-  have ⟨xs, ys, ok⟩ := sl
+
+theorem fromSL_tailSL_eq_tail_fromSL
+  : fromSL ∘ @tailSL a = tail ∘ fromSL := by
+  funext as
+  have ⟨xs, ys, ok⟩ := as
   cases xs with
   | nil =>
     induction ys with
@@ -284,7 +238,7 @@ example : ∀ (as : SymList a), fromSL (tailSL as) = tail (fromSL as) := by
       . simp [tailSL, h, fromSL]
 
 
-theorem length_sl_eq_length (xs : List a)
+theorem lengthSL_splitInTwoSL_eq_length (xs : List a)
  : lengthSL (splitInTwoSL xs) = List.length xs := by
   simp [splitInTwoSL, lengthSL]
   omega
@@ -340,7 +294,7 @@ theorem lengthSL_zero_iff_nilSL: lengthSL sl = 0 ↔ sl = nil := by
   simp
 
 def dropWhileSL (p : a → Bool) (sl : SymList a) : SymList a :=
-  if sl.lhs.isEmpty ∧ sl.rhs.isEmpty then nil else
+  if sl.isEmpty then nil else
     match h: headSL sl with
     | none => nil
     | some hsl =>
@@ -419,6 +373,7 @@ example : List.dropLast ∘ fromSL = fromSL ∘ @initSL a := by
           assumption
 -/
 
+open Chapter1 (dropWhile) in
 example (p : a → Bool)
   : dropWhile p ∘ fromSL = fromSL ∘ dropWhileSL p := by
   funext sl

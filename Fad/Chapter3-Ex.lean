@@ -3,50 +3,42 @@ import Fad.Chapter1
 import Fad.«Chapter1-Ex»
 
 namespace Chapter3
+open SymList
 
 /- # Exercicio 3.1 -/
+section Ex31
 
-section
-open SL1
+def abcd := "abcd".toList
 
-/-
-(['a', 'b', 'c'], ['d'])
-(['a'], ['d', 'c', 'b'])
-(['a', 'b'], ['d', 'c'])
+example : (SymList.mk ['a','b','c'] ['d'] (by grind)).fromSL = abcd :=
+  by rfl
 
-#eval toSL "abcd".toList
-#eval List.foldr consSL nilSL "abcd".toList
-#eval List.foldl (flip snocSL) nilSL "abcd".toList
-#eval consSL 'a' (snocSL 'd' (List.foldr consSL nilSL "bc".toList))
+example : (SymList.mk ['a'] ['d','c','b'] (by grind)).fromSL = abcd :=
+  by rfl
+
+example : (SymList.mk ['a','b'] ['d','c'] (by grind)).fromSL = abcd :=
+  by rfl
+
+example : abcd.toSL = List.foldr consSL nil abcd := by rfl
+
+example : abcd.toSL = List.foldr consSL nil abcd := by rfl
+
+example : List.foldl (flip snocSL) nil abcd =
+  SymList.mk ['a'] ['d','c','b'] (by grind) := by rfl
+
+end Ex31
+
+/- # Exercicio 3.2
+
+in Chapter3.lean
+
 -/
 
-end
+/- # Exercicio 3.3
 
-/- # Exercicio 3.2 -/
+in Chapter3.lean
 
-namespace SL1
-
-def nullSL {α : Type} : SymList α → Bool
-| (xs, ys) => xs.isEmpty ∧ ys.isEmpty
-
-def singleSL {α : Type} : SymList α → Prop
-| (xs, ys) => (xs.isEmpty ∧ ys.single) ∨ (ys.isEmpty ∧ xs.single)
-
-def lengthSL {α : Type} : SymList α → Nat
-| (xs, ys) => xs.length + ys.length
-
-end SL1
-
-/- # Exercicio 3.3 -/
-
-namespace SL1
-
-def headSL? {α : Type} : SymList α → Option α
- | ([],[])  => none    -- why not nilSL?
- | ([], ys) => List.head? ys
- | (xs, _)  => List.head? xs
-
-end SL1
+-/
 
 -- # Exercicio 3.4
 
