@@ -323,6 +323,23 @@ theorem replace_foldr_f_eq : replace ∘ List.foldr f 0 = List.foldr f 0 := by
   exact hfus
 
 
+/- # Exercício 1.18 -/
+
+theorem foldl_fusion {a b c : Type}
+  (f : c → a → c) (g : b → a → b) (h : c → b)
+  (h₁ : ∀ (y : c) (x : a), h (f y x) = g (h y) x)
+  : ∀ (y : c) (xs : List a), h (List.foldl f y xs) = List.foldl g (h y) xs := by
+  intro y xs
+  induction xs generalizing y with
+  | nil =>
+    rfl
+  | cons x xs ih =>
+    rewrite [List.foldl]
+    rewrite [ih]
+    rewrite [h₁]
+    rfl
+
+
 /- # Exercicio 1.20 -/
 
 def concat {α : Type} (xss : List (List α)) : List α :=
