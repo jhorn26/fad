@@ -277,6 +277,69 @@ partial def perms₃ {α : Type} [DecidableEq α] : List α → List (List α)
   as.flatMap (λ x => (perms₃ (remove x as)).map (λ ys => x :: ys))
 
 
+/- # Exercício 1.17 -/
+
+theorem foldr_fusion_context_sensitive {a b c : Type}
+ (f : a → c → c) (e : c) (xs : List a)
+ (g : a → b → b) (h : c → b)
+ (h₁ : ∀ (x : a) (ys : List a), h (f x (List.foldr f e ys)) = g x (h (List.foldr f e ys)))
+ : h (List.foldr f e xs) = List.foldr g (h e) xs := by
+ induction xs with
+  | nil => rfl
+  | cons x xs ih =>
+    rewrite [List.foldr]
+    rewrite [h₁ x xs]
+    rewrite [ih]
+    rfl
+
+def replace (x : Int) : Int := if Even x then x else 0
+
+def f (x y : Int) : Int := 2 * x + y
+
+theorem foldr_f_even (xs : List Int) : Even (List.foldr f 0 xs) := by
+  induction xs with
+  | nil =>
+    use 0
+    rfl
+  | cons x xs ih =>
+    simp [f]
+    simp [Int.even_add]
+    exact ih
+
+theorem replace_foldr_f_eq : replace ∘ List.foldr f 0 = List.foldr f 0 := by
+  funext xs
+  have h₁ : ∀ (x : Int) (ys : List Int),
+      replace (f x (List.foldr f 0 ys)) = f x (replace (List.foldr f 0 ys)) := by
+    intro x ys
+    have heven₁ : Even (List.foldr f 0 ys) := foldr_f_even ys
+    have heven₂ : Even (f x (List.foldr f 0 ys)) := by
+      simp [f]
+      simp [Int.even_add]
+      exact heven₁
+    simp [replace]
+    simp [heven₁]
+    simp [heven₂]
+  have hfus := foldr_fusion_context_sensitive f 0 xs f replace h₁
+  exact hfus
+
+
+/- # Exercício 1.18 -/
+
+theorem foldl_fusion {a b c : Type}
+  (f : c → a → c) (g : b → a → b) (h : c → b)
+  (h₁ : ∀ (y : c) (x : a), h (f y x) = g (h y) x)
+  : ∀ (y : c) (xs : List a), h (List.foldl f y xs) = List.foldl g (h y) xs := by
+  intro y xs
+  induction xs generalizing y with
+  | nil =>
+    rfl
+  | cons x xs ih =>
+    rewrite [List.foldl]
+    rewrite [ih]
+    rewrite [h₁]
+    rfl
+
+
 /- # Exercicio 1.20 -/
 
 def concat {α : Type} (xss : List (List α)) : List α :=
