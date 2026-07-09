@@ -7,7 +7,7 @@ namespace Chapter1
 
 def inits {a} : List a → List (List a)
 | [] => [[]]
-| (x :: xs) => [] :: (inits xs).map (fun ys => x :: ys)
+| (x :: xs) => [] :: (inits xs).map (x :: ·)
 
 def tails {a} : List a → List (List a)
 | [] => [[]]
