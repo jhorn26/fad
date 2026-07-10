@@ -284,7 +284,8 @@ def replace (x : Int) : Int := if Even x then x else 0
 def f (x y : Int) : Int := 2 * x + y
 
 /- using `h = replace` and `f = g`, the general condition from the fusion law
-does not work `∀ x y, h (f x y) = g x (h y)` for `x = 1` and `y = 1`
+does not work `∀ x y, h (f x y) = g x (h y)` for `x = 1` and `y = 1`. That is,
+`replace (f 1 1) ≠ f 1 (replace 1)`
 -/
 
 theorem foldr_fusion_cxt {a b c : Type}
@@ -320,14 +321,31 @@ theorem replace_foldr_f_eq
 
 /- # Exercício 1.18 -/
 
+/-- Fusion law for `foldl`.
+
+  The intuition mirrors the `foldr` fusion law: we want to push a
+  post-processing function `h` *inside* a `foldl`, replacing an accumulator of
+  type `c` by an already-transformed accumulator of type `b`.
+
+  The hypothesis `h₁ : ∀ y x, h (f y x) = g (h y) x` states that `h` turns one
+  step of `f` (taken on the untransformed accumulator) into the corresponding
+  step of `g` (taken on the transformed accumulator). In other words, `h` is a
+  step-by-step homomorphism between the two accumulators: the diagram commutes
+  for every element `x` of the list.
+
+  Consequently, applying `h` to the final result of `xs.foldl f e` is the same
+  as running `xs.foldl g` starting from the transformed accumulator `h e`.
+
+  Note the contrast with `foldr` fusion: since in `foldl` the accumulator sits
+  on the *left*, the condition relates `h (f y x)` to `g (h y) x`, keeping `x`
+  on the same side. --/
 theorem foldl_fusion {a b c : Type}
   (f : c → a → c) (g : b → a → b) (h : c → b)
-  (h₁ : ∀ (y : c) (x : a), h (f y x) = g (h y) x)
-  : ∀ (y : c) (xs : List a), h (List.foldl f y xs) = List.foldl g (h y) xs := by
+  (h₁ : ∀ y x, h (f y x) = g (h y) x)
+  : ∀ e (xs : List a), h (xs.foldl f e) = xs.foldl g (h e) := by
   intro y xs
   induction xs generalizing y with
-  | nil =>
-    rfl
+  | nil => rfl
   | cons x xs ih =>
     rewrite [List.foldl]
     rewrite [ih]
