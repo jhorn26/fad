@@ -279,60 +279,73 @@ partial def perms₃ {α : Type} [DecidableEq α] : List α → List (List α)
 
 /- # Exercício 1.17 -/
 
-theorem foldr_fusion_context_sensitive {a b c : Type}
- (f : a → c → c) (e : c) (xs : List a)
- (g : a → b → b) (h : c → b)
- (h₁ : ∀ (x : a) (ys : List a), h (f x (List.foldr f e ys)) = g x (h (List.foldr f e ys)))
- : h (List.foldr f e xs) = List.foldr g (h e) xs := by
- induction xs with
-  | nil => rfl
-  | cons x xs ih =>
-    rewrite [List.foldr]
-    rewrite [h₁ x xs]
-    rewrite [ih]
-    rfl
-
 def replace (x : Int) : Int := if Even x then x else 0
 
 def f (x y : Int) : Int := 2 * x + y
 
-theorem foldr_f_even (xs : List Int) : Even (List.foldr f 0 xs) := by
-  induction xs with
-  | nil =>
-    use 0
-    rfl
-  | cons x xs ih =>
-    simp [f]
-    simp [Int.even_add]
-    exact ih
+/- using `h = replace` and `f = g`, the general condition from the fusion law
+does not work `∀ x y, h (f x y) = g x (h y)` for `x = 1` and `y = 1`. That is,
+`replace (f 1 1) ≠ f 1 (replace 1)`
+-/
 
-theorem replace_foldr_f_eq : replace ∘ List.foldr f 0 = List.foldr f 0 := by
+theorem foldr_fusion_cxt {a b c : Type}
+ (f : a → c → c) (e : c) (xs : List a)
+ (g : a → b → b) (h : c → b)
+ (h₁ : ∀ x (ys : List a), h (f x (ys.foldr f e)) = g x (h (ys.foldr f e)))
+ : h (List.foldr f e xs) = List.foldr g (h e) xs := by
+ induction xs with
+  | nil => rfl
+  | cons x xs ih =>
+    simp [List.foldr]
+    rw [h₁ x xs, ih]
+
+/-- `replace` é a identidade em todo valor computado por `foldr f 0`,
+  pois esses valores são sempre pares. --/
+theorem replace_of_even {x : Int} (h : Even x) : replace x = x := by
+  simp [replace, h]
+
+theorem even_foldr_f (xs : List Int) : Even (xs.foldr f 0) := by
+  induction xs with
+  | nil => exact ⟨0, rfl⟩
+  | cons x xs ih =>
+    simpa [f, Int.even_add] using ih
+
+theorem replace_foldr_f_eq
+  : replace ∘ List.foldr f 0 = List.foldr f 0 := by
   funext xs
-  have h₁ : ∀ (x : Int) (ys : List Int),
-      replace (f x (List.foldr f 0 ys)) = f x (replace (List.foldr f 0 ys)) := by
-    intro x ys
-    have heven₁ : Even (List.foldr f 0 ys) := foldr_f_even ys
-    have heven₂ : Even (f x (List.foldr f 0 ys)) := by
-      simp [f]
-      simp [Int.even_add]
-      exact heven₁
-    simp [replace]
-    simp [heven₁]
-    simp [heven₂]
-  have hfus := foldr_fusion_context_sensitive f 0 xs f replace h₁
-  exact hfus
+  refine foldr_fusion_cxt f 0 xs f replace (fun x ys => ?_)
+  have he : Even (ys.foldr f 0) := even_foldr_f ys
+  rw [replace_of_even he,
+      replace_of_even (by simpa [f, Int.even_add] using he)]
 
 
 /- # Exercício 1.18 -/
 
+/-- Fusion law for `foldl`.
+
+  The intuition mirrors the `foldr` fusion law: we want to push a
+  post-processing function `h` *inside* a `foldl`, replacing an accumulator of
+  type `c` by an already-transformed accumulator of type `b`.
+
+  The hypothesis `h₁ : ∀ y x, h (f y x) = g (h y) x` states that `h` turns one
+  step of `f` (taken on the untransformed accumulator) into the corresponding
+  step of `g` (taken on the transformed accumulator). In other words, `h` is a
+  step-by-step homomorphism between the two accumulators: the diagram commutes
+  for every element `x` of the list.
+
+  Consequently, applying `h` to the final result of `xs.foldl f e` is the same
+  as running `xs.foldl g` starting from the transformed accumulator `h e`.
+
+  Note the contrast with `foldr` fusion: since in `foldl` the accumulator sits
+  on the *left*, the condition relates `h (f y x)` to `g (h y) x`, keeping `x`
+  on the same side. --/
 theorem foldl_fusion {a b c : Type}
   (f : c → a → c) (g : b → a → b) (h : c → b)
-  (h₁ : ∀ (y : c) (x : a), h (f y x) = g (h y) x)
-  : ∀ (y : c) (xs : List a), h (List.foldl f y xs) = List.foldl g (h y) xs := by
+  (h₁ : ∀ y x, h (f y x) = g (h y) x)
+  : ∀ e (xs : List a), h (xs.foldl f e) = xs.foldl g (h e) := by
   intro y xs
   induction xs generalizing y with
-  | nil =>
-    rfl
+  | nil => rfl
   | cons x xs ih =>
     rewrite [List.foldl]
     rewrite [ih]
