@@ -121,21 +121,20 @@ namespace BST1
 
 example {α : Type} (t : Tree α) :
   t.height ≤ t.size ∧ t.size < 2 ^ t.height := by
-  apply And.intro
-  {
-   induction t with
-   | null  => simp [Tree.height, Tree.size]
-   | node t₁ x t₂ ihl ihr =>
-     simp [Tree.height, Tree.size]
-     sorry
-  }
-  {
   induction t with
   | null => simp [Tree.height, Tree.size]
   | node t₁ x t₂ ihl ihr =>
-    simp [Tree.height, Tree.size]
-    sorry
-  }
+    constructor
+    · simp [Tree.height, Tree.size]
+      omega
+    · simp [Tree.height, Tree.size, pow_add, pow_one]
+      have hl : t₁.size < 2 ^ max t₁.height t₂.height :=
+        lt_of_lt_of_le ihl.2
+          (Nat.pow_le_pow_right (by norm_num) (le_max_left _ _))
+      have hr : t₂.size < 2 ^ max t₁.height t₂.height :=
+        lt_of_lt_of_le ihr.2
+          (Nat.pow_le_pow_right (by norm_num) (le_max_right _ _))
+      omega
 
 end BST1
 
