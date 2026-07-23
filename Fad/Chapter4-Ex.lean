@@ -3,6 +3,29 @@ import Fad.Chapter3
 
 namespace Chapter4
 
+/- # Exercício 4.1 -/
+
+theorem floor_ineq (a b : ℤ) :
+    (a < (a + b) / 2 ∧ (a + b) / 2 < b) ↔ a + 1 < b := by
+  constructor
+  · rintro ⟨h1, h2⟩
+    linarith
+  · intro h
+    rcases Int.emod_two_eq_zero_or_one (a + b) with he | he <;>
+      have hdm := Int.emod_add_mul_ediv (a + b) 2 <;>
+      exact ⟨by linarith, by linarith⟩
+
+noncomputable def log2 (x : ℝ) : ℝ := Real.log x / Real.log 2
+
+theorem ceil_ineq (n h : ℕ) (hlt : (n : ℝ) < 2 ^ h) :
+    ⌈log2 ((n : ℝ) + 1)⌉ ≤ (h : ℤ) := by
+  have hle : (n : ℝ) + 1 ≤ 2 ^ h := by exact_mod_cast hlt
+  have hpos : 0 < Real.log 2 := Real.log_pos (by norm_num)
+  refine Int.ceil_le.mpr ((div_le_iff₀ hpos).mpr ?_)
+  simp [← Real.log_pow]
+  exact Real.log_le_log (by linarith) hle
+
+
 /- 4.2
 We have smallest (a,b) = x such that f x < t ≤ f (x + 1)
 But for t = 1024 and f x = x^2 below f x = t and f (x + 1) > t
